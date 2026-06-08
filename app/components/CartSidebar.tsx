@@ -142,22 +142,33 @@ export default function CartSidebar({ visible, onClose, onNavigateToBoat, onBook
   };
 
   // A valid trip needs a boat reservation (beach + day). Boat items have id starting with "boat-".
-  const hasBoatReservation = items.some(i => typeof i.id === 'string' && i.id.startsWith('boat-'));
+// Boat bookings
+const hasBoatReservation = items.some(
+  i => typeof i.id === 'string' && i.id.startsWith('boat-')
+);
 
+// Fishing trips already include the boat
+const hasFishingTrip = items.some(
+  i => typeof i.id === 'string' && i.id.startsWith('fishing-')
+);
 
-  const handleProceedToCheckout = () => {
-    if (items.length === 0) {
-      setValidationError(t('add_activities_hint'));
-      return;
-    }
-    // Require a boat reservation (beach + day) before checkout.
-    if (!hasBoatReservation) {
-      setShowBoatRequired(true);
-      return;
-    }
-    setValidationError('');
-    setStep('contact');
-  };
+const handleProceedToCheckout = () => {
+  if (items.length === 0) {
+    setValidationError(t('add_activities_hint'));
+    return;
+  }
+
+  // Require either:
+  // 1. a boat reservation, OR
+  // 2. a fishing trip (which includes the boat)
+  if (!hasBoatReservation && !hasFishingTrip) {
+    setShowBoatRequired(true);
+    return;
+  }
+
+  setValidationError('');
+  setStep('contact');
+};
 
   const goReserveBoat = () => {
     setShowBoatRequired(false);
