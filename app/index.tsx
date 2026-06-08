@@ -30,9 +30,9 @@ import Toast from './components/Toast';
 import SectionHeader from './components/SectionHeader';
 import FooterSection from './components/FooterSection';
 
-import ActivityIconGrid from './components/ActivityIconGrid';
 import BeachBookingCard from './components/BeachBookingCard';
 import ActivityTabsSection from './components/ActivityTabsSection';
+import ActivityIconGrid from './components/ActivityIconGrid';
 import BookingHistoryModal, { BookingRecord } from './components/BookingHistoryModal';
 
 
@@ -106,9 +106,18 @@ export default function MainScreen() {
   const [beachSectionY, setBeachSectionY] = useState(0);
   const [activitySectionY, setActivitySectionY] = useState(0);
   const [bookingCardY, setBookingCardY] = useState(0);
+  const [fishingSectionY, setFishingSectionY] = useState(0);
 
   // Preselected beach for booking (from map click)
   const [preselectedBeachId, setPreselectedBeachId] = useState<number | null>(null);
+
+  // Pinned activity tab bar — appears once scrolled past the boat booking
+  const [showPinnedTabs, setShowPinnedTabs] = useState(false);
+
+  // Incremented when the Boat tab / quick link is pressed to force the boat card to unroll
+  const [boatExpandTrigger, setBoatExpandTrigger] = useState(0);
+
+
 
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -303,14 +312,46 @@ export default function MainScreen() {
 
   const fishingActivities = useMemo(() => activities.filter(a => FISHING_ACTIVITY_IDS.includes(a.id)), [activities]);
 
-  // Handle tab switch from icon grid - supports sub-targets
-  const handleTabSwitch = useCallback((tab: string, subTarget?: string) => {
-    setActiveActivityTab(tab);
-    setScrollTarget(subTarget);
+  // The unrolled Activities section registers its own scroll-to-section handler here.
+  // We reuse it for the top quick links AND the pinned tab bar so every link points
+  // to the correct unrolled subsection.
+  const activitiesTabHandler = useRef<((tab: string) => void) | null>(null);
+
+  const scrollToBoat = useCallback(() => {
+    // Force the boat card to unroll, then scroll to it.
+    setBoatExpandTrigger(prev => prev + 1);
     setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: activitySectionY + 120, animated: true });
-    }, 100);
+      scrollRef.current?.scrollTo({ y: Math.max(0, bookingCardY - 8), animated: true });
+    }, 60);
+  }, [bookingCardY]);
+
+  const scrollToFishing = useCallback(() => {
+    scrollRef.current?.scrollTo({ y: Math.max(0, fishingSectionY - 8), animated: true });
+  }, [fishingSectionY]);
+
+  // Single entry point used by quick links, the activity icon grid and the pinned bar.
+  const goToTab = useCallback((tab: string) => {
+    if (tab === 'boat') { scrollToBoat(); return; }
+    if (tab === 'fishing') { scrollToFishing(); return; }
+    setActiveActivityTab(tab);
+    if (activitiesTabHandler.current) {
+      activitiesTabHandler.current(tab);
+    } else {
+      // Fallback before the section has registered its handler
+      scrollRef.current?.scrollTo({ y: Math.max(0, activitySectionY - 8), animated: true });
+    }
+  }, [scrollToBoat, scrollToFishing, activitySectionY]);
+
+  // Track scroll position to pin the activity tab bar once we pass the boat booking
+  const handleScroll = useCallback((e: any) => {
+    const y = e.nativeEvent.contentOffset.y;
+    // Show the pinned tab bar once the user scrolls past the boat booking section
+    // (i.e. into the unrolled activities area). Hide again when above it.
+    const threshold = activitySectionY > 0 ? activitySectionY - 60 : 99999;
+    setShowPinnedTabs(y >= threshold);
   }, [activitySectionY]);
+
+
 
   // ═══════════════════════════════════════════════════════════════
   // ═══════════════════════════════════════════════════════════════
@@ -439,47 +480,75 @@ export default function MainScreen() {
       </TouchableOpacity>
 
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}
+        onScroll={handleScroll} scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0D9488" />}>
 
         <HeroSection onExplorePress={() => scrollRef.current?.scrollTo({ y: beachSectionY, animated: true })} />
 
         <View style={s.quickActions}>
-          <TouchableOpacity style={s.quickAction} onPress={() => { setActiveActivityTab('overnight'); handleTabSwitch('overnight'); }}>
+          <TouchableOpacity style={s.quickAction} onPress={() => goToTab('overnight')}>
             <View style={[s.qaIcon, { backgroundColor: '#F5F3FF' }]}><MaterialCommunityIcons name="sleep" size={20} color="#7C3AED" /></View>
             <Text style={s.qaText}>{t('qa_overnight')}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.quickAction} onPress={() => { setActiveActivityTab('food'); handleTabSwitch('food'); }}>
+          <TouchableOpacity style={s.quickAction} onPress={() => goToTab('food')}>
             <View style={[s.qaIcon, { backgroundColor: '#FFF7ED' }]}><Ionicons name="restaurant" size={20} color="#EA580C" /></View>
             <Text style={s.qaText}>{t('qa_food')}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.quickAction} onPress={() => { setActiveActivityTab('water'); handleTabSwitch('water'); }}>
+          <TouchableOpacity style={s.quickAction} onPress={() => goToTab('water')}>
             <View style={[s.qaIcon, { backgroundColor: '#ECFEFF' }]}><Ionicons name="water" size={20} color="#0891B2" /></View>
             <Text style={s.qaText}>{t('qa_activities')}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.quickAction} onPress={() => { setActiveActivityTab('fishing'); handleTabSwitch('fishing'); }}>
+          <TouchableOpacity style={s.quickAction} onPress={() => goToTab('fishing')}>
             <View style={[s.qaIcon, { backgroundColor: '#EFF6FF' }]}><MaterialCommunityIcons name="fish" size={20} color="#2563EB" /></View>
             <Text style={s.qaText}>{t('qa_fishing')}</Text>
           </TouchableOpacity>
         </View>
+
 
         {/* ─── BEACH SECTION (Map only) ─── */}
         <View onLayout={(e) => setBeachSectionY(e.nativeEvent.layout.y)}>
           <IslandMap beaches={beaches} onBeachSelect={handleMapBeachSelect} />
         </View>
 
-        {/* ─── ACTIVITIES SECTION (with tabs) ─── */}
-        <View onLayout={(e) => setActivitySectionY(e.nativeEvent.layout.y)}>
-          <SectionHeader title={t('section_activities_title')} subtitle={t('section_activities_subtitle')} icon="compass" />
-          
-          <ActivityIconGrid
-            onTabSwitch={handleTabSwitch}
-            activeTab={activeActivityTab}
-          />
-
+        {/* ─── FISHING SECTION (after map, before boat booking) ─── */}
+        {/* Header/intro removed — fishing logo (central image) and below is the start */}
+        <View onLayout={(e) => setFishingSectionY(e.nativeEvent.layout.y)}>
           <ActivityTabsSection
+            section="fishing"
+            activeTab={activeActivityTab}
+            onTabChange={setActiveActivityTab}
+            fishingActivities={fishingActivities}
+            onBookActivity={handleBookActivity}
+            showToast={showToast}
+            onBookInshore={handleBookInshore}
+            onOpenCart={() => setCartVisible(true)}
+            configRefreshKey={configRefreshKey}
+          />
+        </View>
+
+        {/* ─── BOOK THE BOAT (Reserve the boat) ─── */}
+        <View onLayout={(e) => setBookingCardY(e.nativeEvent.layout.y)}>
+          <BeachBookingCard
+            beaches={beaches}
+            onBeachPress={handleBeachPressFromBooking}
+            onSuccess={() => showToast(t('boat_booked'), 'success')}
+            onOpenCart={() => setCartVisible(true)}
+            preselectedBeachId={preselectedBeachId}
+            preselectedInshore={preselectedInshore}
+            preselectedChillGym={preselectedChillGym}
+            forceExpandTrigger={boatExpandTrigger}
+            key={`booking-${inshoreTrigger}-${chillGymTrigger}`}
+          />
+        </View>
+
+        {/* ─── ACTIVITIES SECTION (unrolled, after boat booking) ─── */}
+        <SectionHeader title={t('section_activities_title')} subtitle={t('section_activities_subtitle')} icon="compass" />
+        <View onLayout={(e) => setActivitySectionY(e.nativeEvent.layout.y)}>
+          <ActivityTabsSection
+            section="activities"
             activeTab={activeActivityTab}
             onTabChange={setActiveActivityTab}
             fishingActivities={fishingActivities}
@@ -490,28 +559,32 @@ export default function MainScreen() {
             onOpenCart={() => setCartVisible(true)}
             onBookChillGym={handleBookChillGym}
             configRefreshKey={configRefreshKey}
-          />
-
-        </View>
-
-        {/* ─── BOOK THE BOAT ─── */}
-        <View onLayout={(e) => setBookingCardY(e.nativeEvent.layout.y)}>
-          <BeachBookingCard
-            beaches={beaches}
-            onBeachPress={handleBeachPressFromBooking}
-            onSuccess={() => showToast(t('boat_booked'), 'success')}
-            onOpenCart={() => setCartVisible(true)}
-            preselectedBeachId={preselectedBeachId}
-            preselectedInshore={preselectedInshore}
-            preselectedChillGym={preselectedChillGym}
-            key={`booking-${inshoreTrigger}-${chillGymTrigger}`}
+            scrollRef={scrollRef}
+            sectionBaseY={activitySectionY}
+            onBoatPress={scrollToBoat}
+            onFishingPress={scrollToFishing}
+            onRegisterTabHandler={(h) => { activitiesTabHandler.current = h; }}
           />
         </View>
+
 
         <FooterSection onRefreshConfig={handleFooterRefresh} />
 
 
       </ScrollView>
+
+      {/* ─── PINNED ACTIVITY TAB BAR (appears once scrolled past the boat) ─── */}
+      {showPinnedTabs && (
+        <View style={s.pinnedBar}>
+          <ActivityIconGrid
+            compact
+            activeTab={activeActivityTab}
+            onTabSwitch={goToTab}
+          />
+        </View>
+      )}
+
+
 
       {totalItems > 0 && (
         <TouchableOpacity style={s.floatingCart} onPress={() => setCartVisible(true)} activeOpacity={0.85}>
@@ -524,7 +597,8 @@ export default function MainScreen() {
       )}
 
       <BookingModal visible={bookingModalVisible} activity={bookingActivity} onClose={() => setBookingModalVisible(false)} onSuccess={handleBookingSuccess} />
-      <CartSidebar visible={cartVisible} onClose={() => setCartVisible(false)} onBookingComplete={handleBookingComplete} />
+      <CartSidebar visible={cartVisible} onClose={() => setCartVisible(false)} onNavigateToBoat={scrollToBoat} onBookingComplete={handleBookingComplete} />
+
       <PrivacyDashboard visible={privacyVisible} onClose={() => setPrivacyVisible(false)} beaches={beaches} availability={availability} lastUpdated={lastUpdated} />
       <BeachDetailModal visible={beachDetailVisible} beach={selectedBeach} beaches={beaches} preselectedForBooking={beachPreselectedForBooking} onClose={() => { setBeachDetailVisible(false); setBeachPreselectedForBooking(false); }} />
       <BookingHistoryModal visible={bookingHistoryVisible} onClose={() => setBookingHistoryVisible(false)} bookings={bookingHistory} />
@@ -535,6 +609,22 @@ export default function MainScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
+  pinnedBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 150,
+    backgroundColor: '#fff',
+    paddingTop: Platform.OS === 'ios' ? 50 : 32,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   loadingContainer: { flex: 1, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
   loadingText: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginTop: 16 },
   loadingSubtext: { fontSize: 12, color: '#94A3B8', marginTop: 4 },
@@ -580,20 +670,20 @@ const s = StyleSheet.create({
 
   floatingHistoryBtn: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 54 : 34,
-    right: 20,
+    top: Platform.OS === 'ios' ? 54 : (Platform.OS === 'android' ? 28 : 16),
+    right: 16,
     zIndex: 200,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.25,
     shadowRadius: 6,
-    elevation: 5,
+    elevation: 8,
   },
   historyBadge: {
     position: 'absolute',
@@ -623,21 +713,21 @@ const s = StyleSheet.create({
   fcBadgeText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   floatingLangBtn: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 54 : 34,
-    right: 68,
+    top: Platform.OS === 'ios' ? 54 : (Platform.OS === 'android' ? 28 : 16),
+    left: 16,
     zIndex: 200,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#0D9488',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.25,
     shadowRadius: 6,
-    elevation: 5,
+    elevation: 8,
   },
   flagText: {
     color: '#fff',
