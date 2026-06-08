@@ -322,17 +322,48 @@ export async function fetchConfig(): Promise<{
     const remoteGlobalTs = extractGlobalTimestampFromRawINI(remoteINI);
     const remoteSectionTs = extractSectionTimestampsFromRawINI(remoteINI);
     const cachedSectionTs = cacheStatus.sectionTimestamps;
+    const cachedGlobalTs = cacheStatus.globalTimestamp;
 
     console.log('[Config] Remote global timestamp:', remoteGlobalTs);
+    console.log('[Config] Cached global timestamp:', cachedGlobalTs);
     console.log('[Config] Remote sections with _updated:', Object.keys(remoteSectionTs).length);
     console.log('[Config] Cached sections with _updated:', Object.keys(cachedSectionTs).length);
 
     // Compare per-section timestamps
     const comparison = compareSectionTimestamps(remoteSectionTs, cachedSectionTs);
 
-    if (!comparison.needsUpdate && cacheStatus.hasCachedINI) {
-      // ─── ALL sections up to date → load from FS cache ───
-      console.log('[Config] All sections up to date → loading from filesystem cache');
+    // ─── ROBUST CHANGE DETECTION ───
+    // The per-section _updated comparison only catches sections that HAVE an
+    // _updated key. Sections like [strings_en]/[strings_es] have NO timestamp,
+    // so edits there (e.g. the boat-waiting popup text) would be MISSED and the
+    // app would keep serving stale cache. To guarantee ANY edit propagates, we
+    // also:
+    //   (a) compare the global config_updated timestamp, and
+    //   (b) do a raw CONTENT comparison of the full remote INI vs cached INI.
+    // We already download the full remote every load, so this is essentially free
+    // and 100% correct regardless of whether the user bumped any timestamp.
+    const cachedINIForDiff = await getCachedINI();
+    const globalTsChanged =
+      !!remoteGlobalTs && (!cachedGlobalTs || remoteGlobalTs.trim() > cachedGlobalTs.trim());
+    const contentChanged =
+      !cachedINIForDiff || cachedINIForDiff.trim() !== remoteINI.trim();
+
+    if (globalTsChanged) {
+      console.log('[Config] Global config_updated changed:', cachedGlobalTs, '→', remoteGlobalTs);
+    }
+    if (contentChanged) {
+      console.log('[Config] Raw INI content differs from cache → full refresh from remote');
+    }
+
+    // NOTE: when content changed but NO timestamped section flagged it,
+    // comparison.changedSections is empty → the logic below falls into the
+    // "full remote" branch, which replaces the whole config from remote. Good.
+    const needsAnyUpdate = comparison.needsUpdate || contentChanged || globalTsChanged;
+
+
+    if (!needsAnyUpdate && cacheStatus.hasCachedINI) {
+      // ─── ALL sections up to date AND raw content identical → load from cache ───
+      console.log('[Config] All sections up to date + content identical → loading from cache');
 
       // If we have a parsed config in memory, use it (fastest)
       if (_cachedParsedConfig) {
@@ -373,6 +404,7 @@ export async function fetchConfig(): Promise<{
         }
       }
     }
+
 
     // ─── Some sections changed OR no cache ───
     const verification = verifyConfigContent(remoteINI);

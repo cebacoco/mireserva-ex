@@ -96,7 +96,7 @@ interface CartSidebarProps {
 type CheckoutStep = 'cart' | 'contact' | 'sending' | 'success' | 'error';
 
 export default function CartSidebar({ visible, onClose, onNavigateToBoat, onBookingComplete }: CartSidebarProps) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { items, removeItem, updateQuantity, clearCart, totalPrice, totalItems } = useCart();
   const [step, setStep] = useState<CheckoutStep>('cart');
   const [customerName, setCustomerName] = useState('');
@@ -109,8 +109,41 @@ export default function CartSidebar({ visible, onClose, onNavigateToBoat, onBook
 
   const finalTotal = Number(totalPrice);
 
+  // ─── Boat-waiting popup copy: config-driven (GitHub [strings_en]/[strings_es]) ───
+  // If the key is missing from config, t() returns the raw key — so we detect that
+  // and fall back to a built-in bilingual default so the popup is never blank or
+  // stuck in a single language.
+  const BOAT_WAITING_FALLBACK: Record<string, { en: string; es: string }> = {
+    boat_waiting_title: {
+      en: 'Your boat is waiting!',
+      es: '¡Tu bote te espera!',
+    },
+    boat_waiting_message: {
+      en: "Every adventure starts with the boat. You haven't picked a beach and a day yet — let's set sail first, then add the rest of your trip.",
+      es: 'Cada aventura comienza con el bote. Aún no has elegido una playa y un día — primero zarpemos, luego añade el resto de tu viaje.',
+    },
+    boat_waiting_cta: {
+      en: 'Take me to the boat',
+      es: 'Llévame al bote',
+    },
+    boat_waiting_cancel: {
+      en: 'Cancel',
+      es: 'Cancelar',
+    },
+  };
+
+  const tBoat = (key: string): string => {
+    const fromConfig = t(key);
+    // t() returns the raw key when nothing is found in the GitHub config
+    if (fromConfig && fromConfig !== key) return fromConfig;
+    const fb = BOAT_WAITING_FALLBACK[key];
+    if (!fb) return fromConfig;
+    return lang === 'es' ? fb.es : fb.en;
+  };
+
   // A valid trip needs a boat reservation (beach + day). Boat items have id starting with "boat-".
   const hasBoatReservation = items.some(i => typeof i.id === 'string' && i.id.startsWith('boat-'));
+
 
   const handleProceedToCheckout = () => {
     if (items.length === 0) {
@@ -405,7 +438,11 @@ export default function CartSidebar({ visible, onClose, onNavigateToBoat, onBook
   );
 
   // ==================== BOAT REQUIRED POPUP ====================
-  const renderBoatRequiredPopup = () => (
+  // All copy is config-driven (loaded from GitHub [strings_en] / [strings_es])
+  // with safe inline EN/ES fallbacks so the popup is never blank or single-language.
+  const renderBoatRequiredPopup = () => {
+    return (
+
     <Modal visible={showBoatRequired} transparent animationType="fade">
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 28 }}>
         <View style={{ backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', maxWidth: 380, alignItems: 'center' }}>
@@ -413,10 +450,10 @@ export default function CartSidebar({ visible, onClose, onNavigateToBoat, onBook
             <Ionicons name="boat" size={32} color="#0D9488" />
           </View>
           <Text style={{ fontSize: 19, fontWeight: '800', color: '#0F172A', textAlign: 'center' }}>
-            Your boat is waiting!
+            {tBoat('boat_waiting_title')}
           </Text>
           <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 10, lineHeight: 21 }}>
-            Every adventure starts with the boat. You haven't picked a beach and a day yet — let's set sail first, then add the rest of your trip.
+            {tBoat('boat_waiting_message')}
           </Text>
           <TouchableOpacity
             style={[styles.sendBookingBtn, { marginTop: 22, alignSelf: 'stretch' }]}
@@ -424,15 +461,17 @@ export default function CartSidebar({ visible, onClose, onNavigateToBoat, onBook
             activeOpacity={0.85}
           >
             <Ionicons name="navigate" size={18} color="#fff" />
-            <Text style={styles.sendBookingText}>Take me to the boat</Text>
+            <Text style={styles.sendBookingText}>{tBoat('boat_waiting_cta')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={{ paddingVertical: 12, marginTop: 4 }} onPress={() => setShowBoatRequired(false)}>
-            <Text style={{ fontSize: 14, color: '#94A3B8', fontWeight: '600' }}>{t('cancel')}</Text>
+            <Text style={{ fontSize: 14, color: '#94A3B8', fontWeight: '600' }}>{tBoat('boat_waiting_cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
     </Modal>
-  );
+    );
+  };
+
 
 
 

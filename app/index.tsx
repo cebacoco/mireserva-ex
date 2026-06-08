@@ -453,11 +453,17 @@ export default function MainScreen() {
   // MAIN APP — only renders if config loaded successfully from GitHub
   // ═══════════════════════════════════════════════════════════════
 
+  // Lift the bottom-pinned controls above the floating cart bar when it's visible
+  const controlsBottom =
+    totalItems > 0
+      ? (Platform.OS === 'ios' ? 104 : 90)
+      : (Platform.OS === 'ios' ? 34 : 20);
+
   return (
     <View style={s.container}>
-      {/* ─── Floating Language Selector ─── */}
+      {/* ─── Floating Language Selector (bottom-left) ─── */}
       <TouchableOpacity
-        style={s.floatingLangBtn}
+        style={[s.floatingLangBtn, { bottom: controlsBottom }]}
         onPress={() => setLanguage(lang === 'es' ? 'en' : 'es')}
         activeOpacity={0.7}
       >
@@ -465,9 +471,9 @@ export default function MainScreen() {
         <Ionicons name="globe-outline" size={12} color="#fff" style={{ marginLeft: 2 }} />
       </TouchableOpacity>
 
-      {/* ─── Floating Booking History Icon ─── */}
+      {/* ─── Floating Booking History Icon (bottom-right) ─── */}
       <TouchableOpacity
-        style={s.floatingHistoryBtn}
+        style={[s.floatingHistoryBtn, { bottom: controlsBottom }]}
         onPress={() => setBookingHistoryVisible(true)}
         activeOpacity={0.7}
       >
@@ -478,6 +484,7 @@ export default function MainScreen() {
           </View>
         )}
       </TouchableOpacity>
+
 
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}
         onScroll={handleScroll} scrollEventThrottle={16}
@@ -670,20 +677,17 @@ const s = StyleSheet.create({
 
   floatingHistoryBtn: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 54 : (Platform.OS === 'android' ? 28 : 16),
+    // `bottom` is supplied inline so the button sits above the cart bar
     right: 16,
     zIndex: 200,
+
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#0F172A',
+    // Transparent glass look — subtle dark tint so the icon stays visible over any background
+    backgroundColor: 'rgba(15,23,42,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 8,
   },
   historyBadge: {
     position: 'absolute',
@@ -713,21 +717,18 @@ const s = StyleSheet.create({
   fcBadgeText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   floatingLangBtn: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 54 : (Platform.OS === 'android' ? 28 : 16),
+    // `bottom` is supplied inline so the button sits above the cart bar
     left: 16,
     zIndex: 200,
+
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#0D9488',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 8,
+    // Transparent glass look — subtle dark tint so the text stays visible over any background
+    backgroundColor: 'rgba(15,23,42,0.35)',
   },
   flagText: {
     color: '#fff',
