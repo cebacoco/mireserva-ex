@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "private": true,
-  "homepage": "https://cebacoco.github.io/mireserva/",
+  "homepage": "https://cebacoco.github.io/mireserva-ex/",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",

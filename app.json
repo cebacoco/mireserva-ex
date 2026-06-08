@@ -38,7 +38,7 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "baseUrl": "/mireserva/"
+      "baseUrl": "/mireserva-ex/"
     },
     "runtimeVersion": {
       "policy": "sdkVersion"
