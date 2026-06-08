@@ -1524,22 +1524,32 @@ export default function ActivityTabsSection({
   //     boat → scroll up to boat booking
   //     fishing → scroll up to fishing section
   //     others → scroll down to their unrolled section ───
-  const handleIconTab = (tab: string) => {
-    if (tab === 'boat') {
-      if (onBoatPress) onBoatPress();
-      return;
-    }
-    if (tab === 'fishing') {
-      if (onFishingPress) onFishingPress();
-      return;
-    }
-    onTabChange(tab);
-    const relY = sectionY.current[tab] ?? 0;
-    setTimeout(() => {
-      scrollRef?.current?.scrollTo({ y: Math.max(0, sectionBaseY + relY - 8), animated: true });
-    }, 60);
-  };
+const handleIconTab = (tab: string) => {
+  if (tab === 'boat') {
+    if (onBoatPress) onBoatPress();
+    return;
+  }
 
+  if (tab === 'fishing') {
+    if (onFishingPress) onFishingPress();
+    return;
+  }
+
+  onTabChange(tab);
+
+  // Give React Native enough time to finish any
+  // expanded/collapsed layout calculations first.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const relY = sectionY.current[tab] ?? 0;
+
+      scrollRef?.current?.scrollTo({
+        y: Math.max(0, sectionBaseY + relY - 8),
+        animated: true,
+      });
+    });
+  });
+};
   // Keep latest handler in a ref and expose a stable wrapper to the parent once.
   const iconTabRef = useRef(handleIconTab);
   iconTabRef.current = handleIconTab;
